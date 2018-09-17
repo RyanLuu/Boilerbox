@@ -1,0 +1,91 @@
+<html>
+  <head>
+    <title>BoilerBox Games</title>
+    <script src="lib/msgpack.js"></script>
+    <script src="src/mobileMain.js"></script>
+    <style>
+      *{
+        margin:0;
+        text-rendering: optimizelegibility;
+      }
+      @font-face {
+       font-family: "Polygon Party";
+       src: url("assets/fonts/Polygon Party.ttf");
+      }
+       @font-face {
+       font-family: "Pipe Dream";
+       src: url("assets/fonts/Pipe Dream.ttf");
+      }
+       @font-face {
+       font-family: "Super Mario Bros";
+       src: url("assets/fonts/Super Mario Bros.ttf");
+      }
+    </style>
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=0, minimum-scale=1.0, maximum-scale=1.0" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black" />
+  </head>
+  <body>
+    <canvas style="border: none" id="canvas"></canvas>
+  </body>
+  <script>
+    var sentInit = false;
+    var socket;
+    var playerNum = -11;
+    var scores = [ 0, 0, 0, 0 ];
+    var packetFunctions = {
+      "pCount" : function( packet ) {
+        playerNum = packet.c;
+      },
+      "scores" : function( packet ) {
+        scores = packet.scores;
+      }
+    }
+    var messageEvent = function( message ) {
+      if( msgpack !== undefined ) {
+        var packets = msgpack.decode( new Uint8Array( message.data ) );
+        for( var i = 0; i < packets.length; i++ ) {
+          var packet = packets[i];
+          if( packetFunctions[ packet.t ] !== undefined )
+            packetFunctions[ packet.t ]( packet );
+          else {
+            console.log( "Encountered issue: unknown packet type" );
+            console.log( packets );
+          }
+        }
+      }
+  }
+  var socketInit = function( ip, onmessage, onopen, onclose, onerror ) {
+    if ( ip === undefined )
+      return null;
+    var socket = new WebSocket( ip );
+    socket.binaryType = "arraybuffer";
+    socket.onmessage = onmessage || function() {};
+    socket.onopen = onopen || function() {};
+    socket.onclose = onclose || function() {};
+    socket.onerror = onerror || function() {};
+    return socket;
+  };
+  var rotation = [ 0, 0, 0 ];
+  var onDeviceOrientationChangeEvent = function(e) {
+    rotation[ 0 ] = e.beta;// - xsamples;
+    rotation[ 1 ] = e.alpha;// - ysamples;
+    rotation[ 2 ] = e.gamma;// - zsamples;
+    /*rotation[ 0 ] = accelerationIncludingGravity.x;
+    rotation[ 1 ] = accelerationIncludingGravity.y;
+    rotation[ 2 ] = accelerationIncludingGravity.z;*/
+    if( socket.readyState == 1 ) {
+      socket.send( msgpack.encode( [ { type : "r", r : rotation } ] ) );
+    }
+  }
+  var interval = setInterval( function() {
+    if( !sentInit && socket.readyState == 1 ) {
+      socket.send( msgpack.encode( [ { type : "start", deviceType : "player" } ] ) );
+      sentInit = true;
+      clearInterval( interval );
+    }
+  }, 100 );
+  socket = new socketInit( "ws://helloworld-goaliesave2563793.codeanyapp.com:8080", messageEvent );
+  window.addEventListener( 'deviceorientation', onDeviceOrientationChangeEvent, false );
+  </script>
+</html>
